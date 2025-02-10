@@ -20,16 +20,16 @@ app.post('/chat', async (req, res) => {
       ]
     };
     
-    fetch('http://127.0.0.1:11434/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    })
-      .then(response => response.json())
-      .then(data => console.log('Response:', data.choices[0].message))
-      .catch(error => console.error('Error:', error));
+    // fetch('http://127.0.0.1:11434/v1/chat/completions', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Content-Type': 'application/json'
+    //   },
+    //   body: JSON.stringify(data)
+    // })
+    //   .then(response => response.json())
+    //   .then(data => console.log('Response:', data.choices[0].message))
+    //   .catch(error => console.error('Error:', error));
     const response = await axios.post('http://127.0.0.1:11434/v1/chat/completions', {
       model: "deepseek-r1", 
       messages: [
