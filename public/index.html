@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot</title>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    #chatbox { width: 100%; height: 300px; margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; overflow-y: scroll; }
+    input { width: 80%; padding: 10px; font-size: 16px; }
+    button { padding: 10px 15px; font-size: 16px; }
+    .message { margin: 10px 0; padding: 8px; background-color: #f1f1f1; border-radius: 5px; }
+    .user { background-color: #d1e7ff; }
+    .bot { background-color: #e8f5e9; }
+  </style>
+</head>
+<body>
+
+  <h1>Chatbot</h1>
+  <div id="chatbox"></div>
+  <input type="text" id="userMessage" placeholder="Type a message..." />
+  <button id="sendButton">Send</button>
+
+  <script>
+   const chatbox = document.getElementById('chatbox');
+const userMessage = document.getElementById('userMessage');
+const sendButton = document.getElementById('sendButton');
+
+// Function to add a message to the chatbox
+function appendMessage(content, role) {
+  const messageElement = document.createElement('div');
+  messageElement.classList.add('message');
+  messageElement.classList.add(role);
+  messageElement.innerText = content;
+  chatbox.appendChild(messageElement);
+  chatbox.scrollTop = chatbox.scrollHeight;  // Scroll to the bottom
+}
+
+// Send message to server
+sendButton.addEventListener('click', async () => {
+  const message = userMessage.value.trim();
+  if (!message) return;
+
+  // Append the user's message
+  appendMessage(message, 'user');
+  userMessage.value = '';  // Clear the input
+
+  // Send the message to the backend (with streaming)
+  const response = await fetch('/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+
+  // Read the response stream and append to chatbox
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let done = false;
+  let content = '';
+
+  while (!done) {
+    const { value, done: isDone } = await reader.read();
+    done = isDone;
+    
+    // Decode the chunk
+    const temp = decoder.decode(value, { stream: true });
+    console.log(temp);
+
+    try {
+      // Parse the incoming chunk as JSON
+      const json = JSON.parse(temp);
+
+      // Extract the content from the response (if available)
+      if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+        content += json.choices[0].delta.content;
+      }
+
+      // Append partial content as it arrives
+      appendMessage(content, 'bot');
+    } catch (error) {
+      console.error('Error parsing JSON:', error);
+    }
+  }
+});
+
+  </script>
+</body>
+</html>
