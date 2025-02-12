@@ -53,12 +53,13 @@ export function ChatInterface() {
     const id = generateIdFromDate()
     setMessages(prev => [...prev, { id, userContent: input }])
     setInput("")
+    console.log(messages)
 
     try {
       const response = await fetch('/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ message: messages, input:input }),
       })
 
       if (response.body) {
