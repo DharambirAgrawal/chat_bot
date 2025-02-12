@@ -3,130 +3,187 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Send } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Send, Bot, User } from "lucide-react"
+import CompilePreviewMDX from "./CompileMDX"
+import { cn } from "@/lib/utils"
 
 type Message = {
   id: string
   userContent: string
-  botContent?: string
+  botContent?: {
+    think?: string
+    content?: string
+  }
 }
 
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+
   function generateIdFromDate() {
-    const timestamp = Date.now(); // Get current timestamp (milliseconds since Jan 1, 1970)
-    const randomSuffix = Math.floor(Math.random() * 1000); // Random number to ensure uniqueness
-    return `${timestamp}-${randomSuffix}`;
+    const timestamp = Date.now()
+    const randomSuffix = Math.floor(Math.random() * 1000)
+    return `${timestamp}-${randomSuffix}`
   }
 
-  // Function to handle sending user message and fetching assistant response
+  const processContent = (content: string) => {
+    let thinkContent = ''
+    let remainingContent = content
+    
+    const thinkStartIndex = content.indexOf('<think>')
+    const thinkEndIndex = content.indexOf('</think>')
+  
+    if (thinkStartIndex !== -1 && thinkEndIndex === -1) {
+      thinkContent = content.slice(thinkStartIndex)
+      remainingContent = content.slice(0, thinkStartIndex)
+    } else if (thinkStartIndex !== -1 && thinkEndIndex !== -1) {
+      thinkContent = content.slice(thinkStartIndex, thinkEndIndex + '</think>'.length)
+      remainingContent = content.slice(0, thinkStartIndex) + content.slice(thinkEndIndex + '</think>'.length)
+    }
+  
+    return { thinkContent, remainingContent }
+  }
+
   const handleSend = async () => {
+    if (!input.trim()) return
+
+    setIsLoading(true)
     const id = generateIdFromDate()
-    if (input.trim()) {
-      // Add user's message to the messages state
-      setMessages([...messages, { id: id, userContent: input }])
+    setMessages(prev => [...prev, { id, userContent: input }])
+    setInput("")
 
-      // Clear input field after sending
-      setInput("")
+    try {
+      const response = await fetch('/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input }),
+      })
 
-      try {
-        const response = await fetch('/api', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: input }),
-        })
+      if (response.body) {
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let done = false
+        let content = ""
 
-        if (response.body) {
-          const reader = response.body.getReader()
-          const decoder = new TextDecoder()
-          let done = false
-          let content = ""
+        while (!done) {
+          const { value, done: isDone } = await reader.read()
+          done = isDone
+          const temp = decoder.decode(value, { stream: true })
+          content += temp
 
-          // Read the response stream and update chat as it arrives
-          while (!done) {
-            const { value, done: isDone } = await reader.read()
-            done = isDone
+          const { thinkContent, remainingContent } = processContent(content)
 
-            // Decode the chunk
-            const temp = decoder.decode(value, { stream: true })
+          setMessages(prevMessages =>
+            prevMessages.map(message =>
+              message.id === id
+                ? { ...message, botContent: { think: thinkContent } }
+                : message
+            )
+          )
 
-            try {
-              // Append new content to the message
-              content += temp
-
-              // Update the message in the chat with the new content
-              setMessages(prevMessages =>
-                prevMessages.map(message =>
-                  message.id === id
-                    ? { ...message, botContent: content }  // Update the message with the new content
-                    : message
-                )
-              );
-            } catch (error) {
-              console.error('Error reading stream:', error)
-            }
+          if (thinkContent && thinkContent.includes('</think>')) {
+            setMessages(prevMessages =>
+              prevMessages.map(message =>
+                message.id === id
+                  ? { 
+                      ...message, 
+                      botContent: {
+                        think: message.botContent?.think,
+                        content: remainingContent
+                      } 
+                    }
+                  : message
+              )
+            )
           }
         }
-      } catch (error) {
-        console.error("Error fetching from chatbot API:", error)
       }
+    } catch (error) {
+      console.error("Error fetching from chatbot API:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-background">
       <ScrollArea className="flex-1 p-4">
-        {messages.map((message, index) => (
-          <div key={index}>
-
-            <div className={`flex justify-end mb-4`}>
-              <div className={`flex items-start flex-row-reverse`}>
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback> U</AvatarFallback>
-                </Avatar>
-                <div className={`mx-2 p-3 rounded-lg bg-primary text-primary-foreground`}>
-                  {message.userContent}
+        <div className="space-y-6">
+          {messages.map((message, index) => (
+            <div key={index} className="space-y-4">
+              <div className="flex justify-end">
+                <div className="flex items-start gap-2 max-w-[80%]">
+                  <div className="rounded-2xl bg-primary px-4 py-2 text-primary-foreground">
+                    <p className="text-sm">{message.userContent}</p>
+                  </div>
+                  <Avatar className="h-8 w-8 border-2 border-muted">
+                    <AvatarFallback className="bg-secondary text-secondary-foreground">
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
                 </div>
               </div>
-            </div>
-            {
-              message.botContent && (
-                <div key={index} className={`flex justify-start mb-4`}>
-                  <div className={`flex items-start flex-row`}>
-                    <Avatar className="w-8 h-8">
-                      <AvatarFallback>A</AvatarFallback>
+
+              {message.botContent && (
+                <div className="flex justify-start">
+                  <div className="flex items-start gap-2 max-w-[80%]">
+                    <Avatar className="h-8 w-8 border-2 border-muted">
+                      <AvatarFallback className="bg-secondary text-secondary-foreground">
+                        <Bot className="h-4 w-4" />
+                      </AvatarFallback>
                     </Avatar>
-                    <div className={`mx-2 p-3 rounded-lg bg-muted`}>
-                      {message.botContent}
+                    <div className="space-y-2">
+                      {message.botContent.think && (
+                        <div className="rounded-2xl bg-muted/50 px-4 py-2">
+                          <p className="text-sm text-muted-foreground italic">
+                            {message.botContent.think}
+                          </p>
+                        </div>
+                      )}
+                      {message.botContent.content && (
+                        <div className="rounded-2xl bg-muted px-4 py-2">
+                          <article className="prose prose-sm dark:prose-invert">
+                            <CompilePreviewMDX content={message.botContent.content} />
+                          </article>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              )
-            }
-
-          </div>
-
-        ))}
+              )}
+            </div>
+          ))}
+        </div>
       </ScrollArea>
-      <div className="p-4 border-t">
+
+      <div className="border-t bg-background p-4">
         <form
           onSubmit={async (e) => {
             e.preventDefault()
             await handleSend()
           }}
-          className="flex space-x-2"
+          className="flex items-center gap-2"
         >
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
             className="flex-1"
+            disabled={isLoading}
           />
-          <Button type="submit">
+          <Button 
+            type="submit" 
+            size="icon"
+            disabled={isLoading || !input.trim()}
+            className={cn(
+              "transition-all duration-200",
+              isLoading && "opacity-50 cursor-not-allowed"
+            )}
+          >
             <Send className="h-4 w-4" />
-            <span className="sr-only">Send</span>
+            <span className="sr-only">Send message</span>
           </Button>
         </form>
       </div>

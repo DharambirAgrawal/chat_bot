@@ -2,15 +2,26 @@ export async function POST(request: Request) {
     const { message } = await request.json()
 
     // Make the POST request to the chatbot API and start streaming
-    const response = await fetch('https://special-space-sniffle-qwpp7j5w4q2xjw-11434.app.github.dev/v1/chat/completions', {
+    // const response = await fetch('https://special-space-sniffle-qwpp7j5w4q2xjw-11434.app.github.dev/v1/chat/completions', {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify({
+    //         model: "deepseek-r1:1.5b",
+    //         messages: [
+    //             { role: 'system', content: 'You are a helpful assistant.' },
+    //             { role: 'user', content: message }
+    //         ],
+    //         stream: true, // Enable streaming
+    //     }),
+    // })
+    const response = await fetch('https://special-space-sniffle-qwpp7j5w4q2xjw-11434.app.github.dev/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: "deepseek-r1",
-            messages: [
-                { role: 'system', content: 'You are a helpful assistant.' },
-                { role: 'user', content: message }
-            ],
+            model: "deepseek-r1:1.5b",
+             prompt:message,
+             format: "json",
+            
             stream: true, // Enable streaming
         }),
     })
@@ -35,6 +46,7 @@ export async function POST(request: Request) {
 
                     // Decode the chunk
                     const temp = decoder.decode(value, { stream: true })
+                    console.log(temp)
                     if (temp.includes('data: [DONE]')) {
                         break
                     }
