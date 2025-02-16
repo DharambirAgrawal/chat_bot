@@ -15,6 +15,8 @@ type Message = {
     think?: string
     content?: string
   }
+  isThinking?: boolean
+  showThinking?: boolean // This will control the toggle state for showing the thinking message
 }
 
 export function ChatInterface() {
@@ -53,13 +55,12 @@ export function ChatInterface() {
     const id = generateIdFromDate()
     setMessages(prev => [...prev, { id, userContent: input }])
     setInput("")
-    console.log(messages)
 
     try {
       const response = await fetch('/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messages, input:input }),
+        body: JSON.stringify({ message: messages, input: input }),
       })
 
       if (response.body) {
@@ -76,10 +77,11 @@ export function ChatInterface() {
 
           const { thinkContent, remainingContent } = processContent(content)
 
+          // Update thinking content for the specific message
           setMessages(prevMessages =>
             prevMessages.map(message =>
               message.id === id
-                ? { ...message, botContent: { think: thinkContent } }
+                ? { ...message, botContent: { think: thinkContent }, isThinking: true, showThinking: true } // Show thinking initially
                 : message
             )
           )
@@ -90,10 +92,8 @@ export function ChatInterface() {
                 message.id === id
                   ? { 
                       ...message, 
-                      botContent: {
-                        think: message.botContent?.think,
-                        content: remainingContent
-                      } 
+                      botContent: { think: message.botContent?.think, content: remainingContent }, 
+                      isThinking: false 
                     }
                   : message
               )
@@ -136,11 +136,18 @@ export function ChatInterface() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="space-y-2">
-                      {message.botContent.think && (
-                        <div className="rounded-2xl bg-muted/50 px-4 py-2">
-                          <p className="text-sm text-muted-foreground italic">
-                            {message.botContent.think}
-                          </p>
+                      {message.isThinking && message.botContent.think && message.showThinking && (
+                        <div
+                          className="rounded-2xl bg-muted/50 px-4 py-2 cursor-pointer"
+                          onClick={() => setMessages(prevMessages =>
+                            prevMessages.map(msg =>
+                              msg.id === message.id
+                                ? { ...msg, showThinking: !msg.showThinking }
+                                : msg
+                            )
+                          )}
+                        >
+                          <span className="p-2 m-1 animate-pulse">Thinking...</span>
                         </div>
                       )}
                       {message.botContent.content && (
@@ -174,8 +181,8 @@ export function ChatInterface() {
             className="flex-1"
             disabled={isLoading}
           />
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             size="icon"
             disabled={isLoading || !input.trim()}
             className={cn(
